@@ -1,9 +1,12 @@
-# [... RecipeName ... ] Risk Scanner
+# Database Risk Scanner
 
-[ ... short description of the recipe... ]
+This tool demonstrates to analyze stream of data using BluBracket CLI as local gRPC server. 
+For example: Stream text data stored in database column with a database query 
+using your favorite db query tool or custom script and scan it for any security risks.
 
 This fully-functional solution uses the BluBracket CLI to do the risk detection heavy lifting,
-combined with open-source helper code written in Python to interact with CLI.
+combined with open-source `stream-scanner` client code written in golang to interact with CLI
+and a python script to query the database.
 
 This tool runs entirely locally. Installation is almost as easy as cloning the repo,
 and you should have a working POC in minutes.
@@ -15,6 +18,7 @@ and you should have a working POC in minutes.
 2. `pipenv sync` inside the repo to install Python dependencies
 
 Requires Python3 and pip, but [you probably already have those](https://pip.pypa.io/en/stable/installation/).
+Requires [golang installation](https://go.dev/doc/install)
 
 ### Install the BluBracket CLI
 
@@ -38,14 +42,33 @@ chmod +x ./blubracket
 mv ./blubracket /usr/local/bin/
 ```
 
+## Build
+
+This will build the `stream-scanner` client.
+
+```
+cd ./grpc/stream-scanner
+go build
+```
+
 ## Usage
 
+Open one command/terminal window. Start blubracket CLI server.
+
 ```
-pipenv sync 
-[pipenv run python ...]
+blubracket serve unix:/tmp/blubracket-cli-server
 ```
 
-To see more options `pipenv run python ... --help`
+Open another command/terminal window. Using stream-scanner client, stream data to be scanned 
+to the cli server. Risks encountered are displayed on the console.
+
+For example, stream the database query result using a python script to stream-scanner.
+ 
+
+```
+pipenv run python database_scan.py --database sampledb --query query.sql | stream-scanner unix:/blubracket-cli-server
+```
+
 
 ## Modifying and contributing
 
