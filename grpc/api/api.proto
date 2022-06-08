@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "github.com/database-risk-scanner/grpc/api";
+option go_package = "github.com/BluBracket/database-risk-scanner/grpc/api";
 
 package api;
 
