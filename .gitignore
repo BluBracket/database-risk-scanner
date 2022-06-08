@@ -87,4 +87,5 @@ fabric.properties
 **/ngrok.log
 
 # scan-db binary
-scan-db/scan-db*
+scan-db/scan-db
+

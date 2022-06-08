@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v4/stdlib"
 
 	pb "github.com/BluBracket/database-risk-scanner/grpc/api"
 	"github.com/bserdar/jsonstream"
@@ -78,7 +78,7 @@ func scanDb() (err error) {
 }
 
 func connectToDb() (db *sql.DB, err error) {
-	db, err = sql.Open("postgres", uri)
+	db, err = sql.Open("pgx", uri)
 	if err != nil {
 		err = errors.Wrap(err, "failed to connect")
 		return
@@ -109,9 +109,9 @@ func queryDb(db *sql.DB, out jsonstream.LineWriter) (err error) {
 		err = errors.Wrap(err, "failed to get column types from query result")
 		return
 	}
-	dataType := types[1].DatabaseTypeName()
-	if !isSupportedType(dataType) {
-		err = fmt.Errorf("column type not supported: %s", dataType)
+	databaseTypeName := types[1].DatabaseTypeName()
+	if !isSupportedType(databaseTypeName) {
+		err = fmt.Errorf("column type not supported: %s", databaseTypeName)
 		return
 	}
 
@@ -133,7 +133,7 @@ func queryDb(db *sql.DB, out jsonstream.LineWriter) (err error) {
 			err = errors.Wrap(err, "failed to read query result")
 			return
 		}
-		err = scanData(c, id, parseData(dataType, data), out)
+		err = scanData(c, id, parseData(databaseTypeName, data), out)
 		if err != nil {
 			err = errors.Wrap(err, "failed to scan record")
 			return
@@ -146,17 +146,6 @@ func queryDb(db *sql.DB, out jsonstream.LineWriter) (err error) {
 		return
 	}
 	fmt.Println("scan completed")
-	return
-}
-
-// TODO: need to test
-func parseData(dataType string, rawData any) (data []byte) {
-	if s, ok := rawData.(string); ok {
-		return []byte(s)
-	}
-	if b, ok := rawData.([]byte); ok {
-		return b
-	}
 	return
 }
 
@@ -268,9 +257,29 @@ func writeRisk(recordId string, risk *pb.Risk, out jsonstream.LineWriter) error 
 
 // isSupportedType checks the columnType to be a text type
 func isSupportedType(dt string) bool {
-	supportedTypes := map[string]interface{}{"VARCHAR": nil, "NVARCHAR": nil, "TEXT": nil, "BPCHAR": nil, "JSON": nil}
+	supportedTypes := map[string]interface{}{
+		"VARCHAR":  nil,
+		"NVARCHAR": nil,
+		"TEXT":     nil,
+		"_TEXT":    nil,
+		"BPCHAR":   nil,
+		"JSON":     nil,
+	}
 	_, ok := supportedTypes[dt]
 	return ok
+}
+
+// TODO: need to test
+func parseData(databaseTypeName string, rawData any) (data []byte) {
+	// fmt.Printf("database TypeName: %s, rawData type: %T\n", databaseTypeName, rawData)
+	if s, ok := rawData.(string); ok {
+		return []byte(s)
+	}
+	if b, ok := rawData.([]byte); ok {
+		// fmt.Printf("data : %s\n", string(b))
+		return b
+	}
+	return
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
