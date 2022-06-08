@@ -33,6 +33,11 @@ var (
 	output string
 )
 
+var (
+	// count of risks found
+	riskCount = 0
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "scan-db",
 	Short: "scan-db scans database for risks",
@@ -74,9 +79,20 @@ func scanDb() (err error) {
 	if err != nil {
 		return err
 	}
+
+	if riskCount == 0 {
+		fmt.Println("no risks found")
+	} else {
+		fmt.Printf("found %d risk(s)\n", riskCount)
+	}
 	return
 }
 
+// connectToDb connects to postgres database.
+// for connecting to other golang supported databases, minor changes will be required.
+// 1. import driver for the database instead of pgx driver for postgres used here and pass to sql.Open()
+// 2. invoke the tool with database uri (format) supported by the driver
+// 3. update isSupportedColumnType() and convertToByteSlice() func if needed
 func connectToDb() (db *sql.DB, err error) {
 	db, err = sql.Open("pgx", uri)
 	if err != nil {
@@ -98,7 +114,7 @@ func connectToDb() (db *sql.DB, err error) {
 // it tags each risk with the recordId for correlation. on completion, it stops
 // the blubracket cli process.
 func queryDb(db *sql.DB, out jsonstream.LineWriter) (err error) {
-	rows, err := db.Query(fmt.Sprintf("select %s, %s from %s limit 10", idColumn, column, table))
+	rows, err := db.Query(fmt.Sprintf("select %s, %s from %s", idColumn, column, table))
 	if err != nil {
 		err = errors.Wrap(err, "failed to query")
 		return
@@ -110,7 +126,7 @@ func queryDb(db *sql.DB, out jsonstream.LineWriter) (err error) {
 		return
 	}
 	databaseTypeName := types[1].DatabaseTypeName()
-	if !isSupportedType(databaseTypeName) {
+	if !isSupportedColumnType(databaseTypeName) {
 		err = fmt.Errorf("column type not supported: %s", databaseTypeName)
 		return
 	}
@@ -127,13 +143,19 @@ func queryDb(db *sql.DB, out jsonstream.LineWriter) (err error) {
 	// read result set. send data to server for scanning.
 	fmt.Println("sending records for scanning")
 	for rows.Next() {
-		var id, data any
-		err = rows.Scan(&id, &data)
+		var id, rawData any
+		var data []byte
+		err = rows.Scan(&id, &rawData)
 		if err != nil {
 			err = errors.Wrap(err, "failed to read query result")
 			return
 		}
-		err = scanData(c, id, parseData(databaseTypeName, data), out)
+		data, err = convertToByteSlice(databaseTypeName, rawData)
+		if err != nil {
+			err = errors.Wrap(err, "failed to convert data to []byte")
+			return
+		}
+		err = scanData(c, id, data, out)
 		if err != nil {
 			err = errors.Wrap(err, "failed to scan record")
 			return
@@ -199,8 +221,8 @@ func scanData(client pb.BluBracketClient, id any, data []byte, out jsonstream.Li
 	}
 
 	// read response(s) on stream while sending data
-	done := make(chan bool)
-	go readRisks(c, recordId, out, done)
+	errCh := make(chan error, 1)
+	go readRisks(c, recordId, out, errCh)
 
 	// send data msg
 	err = c.Send(&pb.AnalyzeStreamRequest{Data: data})
@@ -215,17 +237,24 @@ func scanData(client pb.BluBracketClient, id any, data []byte, out jsonstream.Li
 		return
 	}
 
-	<-done
+	err = <-errCh
 	return
 }
 
 // readRisks receive response(s) containing risk found. it add recordId to the risk for correlation and
 // writes it to the output file in json.
-func readRisks(c pb.BluBracket_AnalyzeStreamClient, recordId string, out jsonstream.LineWriter, done chan bool) {
-	defer close(done)
+func readRisks(c pb.BluBracket_AnalyzeStreamClient, recordId string, out jsonstream.LineWriter, errCh chan error) {
+	var err error
+	defer func() {
+		errCh <- err
+		close(errCh)
+	}()
+
 	for {
-		asResponse, err := c.Recv()
+		var asResponse *pb.AnalyzeStreamResponse
+		asResponse, err = c.Recv()
 		if err == io.EOF {
+			err = nil
 			break
 		}
 		if err != nil {
@@ -237,6 +266,7 @@ func readRisks(c pb.BluBracket_AnalyzeStreamClient, recordId string, out jsonstr
 			fmt.Printf("failed writing risk to output: %v\n", err)
 			return
 		}
+		riskCount++
 	}
 }
 
@@ -255,8 +285,8 @@ func writeRisk(recordId string, risk *pb.Risk, out jsonstream.LineWriter) error 
 	return out.Marshal(r)
 }
 
-// isSupportedType checks the columnType to be a text type
-func isSupportedType(dt string) bool {
+// isSupportedColumnType checks that databaseTypeName (dt) of the column being scanned is a text type
+func isSupportedColumnType(dt string) bool {
 	supportedTypes := map[string]interface{}{
 		"VARCHAR":  nil,
 		"NVARCHAR": nil,
@@ -264,21 +294,26 @@ func isSupportedType(dt string) bool {
 		"_TEXT":    nil,
 		"BPCHAR":   nil,
 		"JSON":     nil,
+		"JSONB":    nil,
 	}
 	_, ok := supportedTypes[dt]
 	return ok
 }
 
-// TODO: need to test
-func parseData(databaseTypeName string, rawData any) (data []byte) {
+// convertToByteSlice does type casting of rawData and returns []byte.
+// rawData is the data for the column being scanned as returned by rows.Scan() method
+// typically it is of string or []uint8 type for columns that store textual data
+// returned []byte can be sent as data stream for scanning.
+func convertToByteSlice(databaseTypeName string, rawData any) (data []byte, err error) {
 	// fmt.Printf("database TypeName: %s, rawData type: %T\n", databaseTypeName, rawData)
 	if s, ok := rawData.(string); ok {
-		return []byte(s)
+		return []byte(s), nil
 	}
 	if b, ok := rawData.([]byte); ok {
 		// fmt.Printf("data : %s\n", string(b))
-		return b
+		return b, nil
 	}
+	err = errors.New(fmt.Sprintf("unexpected data type: %T (database TypeName: %s)", rawData, databaseTypeName))
 	return
 }
 
