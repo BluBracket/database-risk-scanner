@@ -1,12 +1,9 @@
 # Database Risk Scanner
 
-This tool demonstrates to analyze stream of data using BluBracket CLI as local gRPC server. 
-For example: Stream text data stored in database column with a database query 
-using your favorite db query tool or custom script and scan it for any security risks.
+This tool demonstrates to analyze textual data stored in a postgres database using BluBracket CLI as local gRPC server. 
 
 This fully-functional solution uses the BluBracket CLI to do the risk detection heavy lifting,
-combined with open-source `stream-scanner` client code written in golang to interact with CLI
-and a python script to query the database.
+combined with open-source `scan-db` client code written in golang.
 
 This tool runs entirely locally. Installation is almost as easy as cloning the repo,
 and you should have a working POC in minutes.
@@ -15,9 +12,7 @@ and you should have a working POC in minutes.
 
 1. Install the BluBracket CLI (see below)
 2. Clone or download this repo
-2. `pipenv sync` inside the repo to install Python dependencies
 
-Requires Python3 and pip, but [you probably already have those](https://pip.pypa.io/en/stable/installation/).
 Requires [golang installation](https://go.dev/doc/install)
 
 ### Install the BluBracket CLI
@@ -44,29 +39,21 @@ mv ./blubracket /usr/local/bin/
 
 ## Build
 
-This will build the `stream-scanner` client.
+This will build the `scan-db` client.
 
 ```
-cd ./grpc/stream-scanner
+cd ./scan-db
 go build
 ```
 
 ## Usage
+Open command/terminal window. 
 
-Open one command/terminal window. Start blubracket CLI server.
-
-```
-blubracket serve unix:/tmp/blubracket-cli-server
-```
-
-Open another command/terminal window. Using stream-scanner client, stream data to be scanned 
-to the cli server. Risks encountered are displayed on the console.
-
-For example, stream the database query result using a python script to stream-scanner.
- 
 
 ```
-pipenv run python database_scan.py --database sampledb --query query.sql | stream-scanner unix:/blubracket-cli-server
+# Scan a given column in the table 
+./scan-db --uri <database-uri> --table <table name>  --column <column to scan> --id-column <record id column> --output out.json
+
 ```
 
 
