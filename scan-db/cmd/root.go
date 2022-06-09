@@ -122,6 +122,7 @@ func queryDb(db *gorm.DB, out jsonstream.LineWriter) (err error) {
 
 	// read result set. send data to server for scanning.
 	fmt.Println("sending records for scanning")
+	count := 1
 	for rows.Next() {
 		var r record
 		err = rows.Scan(&r.id, &r.text)
@@ -135,7 +136,8 @@ func queryDb(db *gorm.DB, out jsonstream.LineWriter) (err error) {
 			err = errors.Wrap(err, "failed to scan record")
 			return
 		}
-		fmt.Print(".")
+		fmt.Printf("\rprocessing record : %d", count)
+		count++
 	}
 	err = rows.Err()
 	if err != nil {
@@ -166,15 +168,34 @@ func startServer() (cmd *exec.Cmd, conn *grpc.ClientConn, err error) {
 		err = errors.Wrap(err, "failed to start blubracket cli process")
 		return
 	}
-	// given some time for server to listen
-	time.Sleep(time.Second)
 	// establish a connection
-	conn, err = grpc.Dial(serverUri, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		err = errors.Wrap(err, "failed to connect to server")
-		return
-	}
+	conn, err = connectToServer(serverUri)
 	return
+}
+
+// connectToServer establish a connection to the local gRPC server listening at serverUri.
+// it retries a couple of times before failing.
+func connectToServer(serverUri string) (conn *grpc.ClientConn, err error) {
+	s := 1
+	retries := 3
+	for {
+		// wait for few seconds before dialing
+		time.Sleep(time.Duration(s) * time.Second)
+		conn, err = grpc.Dial(serverUri, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err == nil {
+			return
+		}
+
+		retries--
+		s *= 2
+		if err != nil && retries <= 0 {
+			err = errors.Wrap(err, "failed to connect to server")
+			return
+		} else {
+			fmt.Printf("\rretry connect to server after %d seconds", s)
+		}
+
+	}
 }
 
 // scanData invokes AnalyzeStream method on the gRPC server to scan the given data and write risks
