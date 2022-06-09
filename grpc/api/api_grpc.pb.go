@@ -22,15 +22,6 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type BluBracketClient interface {
-	// AnalyzeLines analyzes the passed set of lines
-	// Note: the response is a stream response meaning that
-	// there can be multiple instances of the risks returned
-	// as soon as the risk is detected.
-	// More important for the AnalyzeFile method
-	// as the number of risks can be quite large
-	AnalyzeLines(ctx context.Context, in *AnalyzeLinesRequest, opts ...grpc.CallOption) (BluBracket_AnalyzeLinesClient, error)
-	// AnalyzeFile analyzes the whole file
-	AnalyzeFile(ctx context.Context, in *AnalyzeFileRequest, opts ...grpc.CallOption) (BluBracket_AnalyzeFileClient, error)
 	// AnalyzeStream analyzes stream of data and sends back stream of risks detected.
 	// Note: the request is a stream. First msg sent on the stream must contain metadata of stream e.g. stream name.
 	// subsequent messages may contain data to be analyzed. stream can be closed with CloseSend().
@@ -49,72 +40,8 @@ func NewBluBracketClient(cc grpc.ClientConnInterface) BluBracketClient {
 	return &bluBracketClient{cc}
 }
 
-func (c *bluBracketClient) AnalyzeLines(ctx context.Context, in *AnalyzeLinesRequest, opts ...grpc.CallOption) (BluBracket_AnalyzeLinesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &BluBracket_ServiceDesc.Streams[0], "/api.BluBracket/AnalyzeLines", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &bluBracketAnalyzeLinesClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type BluBracket_AnalyzeLinesClient interface {
-	Recv() (*AnalyzeLinesResponse, error)
-	grpc.ClientStream
-}
-
-type bluBracketAnalyzeLinesClient struct {
-	grpc.ClientStream
-}
-
-func (x *bluBracketAnalyzeLinesClient) Recv() (*AnalyzeLinesResponse, error) {
-	m := new(AnalyzeLinesResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *bluBracketClient) AnalyzeFile(ctx context.Context, in *AnalyzeFileRequest, opts ...grpc.CallOption) (BluBracket_AnalyzeFileClient, error) {
-	stream, err := c.cc.NewStream(ctx, &BluBracket_ServiceDesc.Streams[1], "/api.BluBracket/AnalyzeFile", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &bluBracketAnalyzeFileClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type BluBracket_AnalyzeFileClient interface {
-	Recv() (*AnalyzeFileResponse, error)
-	grpc.ClientStream
-}
-
-type bluBracketAnalyzeFileClient struct {
-	grpc.ClientStream
-}
-
-func (x *bluBracketAnalyzeFileClient) Recv() (*AnalyzeFileResponse, error) {
-	m := new(AnalyzeFileResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func (c *bluBracketClient) AnalyzeStream(ctx context.Context, opts ...grpc.CallOption) (BluBracket_AnalyzeStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &BluBracket_ServiceDesc.Streams[2], "/api.BluBracket/AnalyzeStream", opts...)
+	stream, err := c.cc.NewStream(ctx, &BluBracket_ServiceDesc.Streams[0], "/api.BluBracket/AnalyzeStream", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -148,15 +75,6 @@ func (x *bluBracketAnalyzeStreamClient) Recv() (*AnalyzeStreamResponse, error) {
 // All implementations must embed UnimplementedBluBracketServer
 // for forward compatibility
 type BluBracketServer interface {
-	// AnalyzeLines analyzes the passed set of lines
-	// Note: the response is a stream response meaning that
-	// there can be multiple instances of the risks returned
-	// as soon as the risk is detected.
-	// More important for the AnalyzeFile method
-	// as the number of risks can be quite large
-	AnalyzeLines(*AnalyzeLinesRequest, BluBracket_AnalyzeLinesServer) error
-	// AnalyzeFile analyzes the whole file
-	AnalyzeFile(*AnalyzeFileRequest, BluBracket_AnalyzeFileServer) error
 	// AnalyzeStream analyzes stream of data and sends back stream of risks detected.
 	// Note: the request is a stream. First msg sent on the stream must contain metadata of stream e.g. stream name.
 	// subsequent messages may contain data to be analyzed. stream can be closed with CloseSend().
@@ -172,12 +90,6 @@ type BluBracketServer interface {
 type UnimplementedBluBracketServer struct {
 }
 
-func (UnimplementedBluBracketServer) AnalyzeLines(*AnalyzeLinesRequest, BluBracket_AnalyzeLinesServer) error {
-	return status.Errorf(codes.Unimplemented, "method AnalyzeLines not implemented")
-}
-func (UnimplementedBluBracketServer) AnalyzeFile(*AnalyzeFileRequest, BluBracket_AnalyzeFileServer) error {
-	return status.Errorf(codes.Unimplemented, "method AnalyzeFile not implemented")
-}
 func (UnimplementedBluBracketServer) AnalyzeStream(BluBracket_AnalyzeStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method AnalyzeStream not implemented")
 }
@@ -192,48 +104,6 @@ type UnsafeBluBracketServer interface {
 
 func RegisterBluBracketServer(s grpc.ServiceRegistrar, srv BluBracketServer) {
 	s.RegisterService(&BluBracket_ServiceDesc, srv)
-}
-
-func _BluBracket_AnalyzeLines_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(AnalyzeLinesRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(BluBracketServer).AnalyzeLines(m, &bluBracketAnalyzeLinesServer{stream})
-}
-
-type BluBracket_AnalyzeLinesServer interface {
-	Send(*AnalyzeLinesResponse) error
-	grpc.ServerStream
-}
-
-type bluBracketAnalyzeLinesServer struct {
-	grpc.ServerStream
-}
-
-func (x *bluBracketAnalyzeLinesServer) Send(m *AnalyzeLinesResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _BluBracket_AnalyzeFile_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(AnalyzeFileRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(BluBracketServer).AnalyzeFile(m, &bluBracketAnalyzeFileServer{stream})
-}
-
-type BluBracket_AnalyzeFileServer interface {
-	Send(*AnalyzeFileResponse) error
-	grpc.ServerStream
-}
-
-type bluBracketAnalyzeFileServer struct {
-	grpc.ServerStream
-}
-
-func (x *bluBracketAnalyzeFileServer) Send(m *AnalyzeFileResponse) error {
-	return x.ServerStream.SendMsg(m)
 }
 
 func _BluBracket_AnalyzeStream_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -270,16 +140,6 @@ var BluBracket_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*BluBracketServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "AnalyzeLines",
-			Handler:       _BluBracket_AnalyzeLines_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "AnalyzeFile",
-			Handler:       _BluBracket_AnalyzeFile_Handler,
-			ServerStreams: true,
-		},
 		{
 			StreamName:    "AnalyzeStream",
 			Handler:       _BluBracket_AnalyzeStream_Handler,

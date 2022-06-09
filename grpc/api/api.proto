@@ -31,47 +31,6 @@ message Risk {
     map<string, string> tags = 8;
 }
 
-// AnalyzeLinesRequest contains input parameters for AnalyzeLines method
-message AnalyzeLinesRequest {
- // start_line is the line number (in a file) of the first line to analyze
- // line number is one-based, the first line in the file is 'one' and not 'zero'
- int32 start_line = 1;
- // current_line is the line number of the currently edited line
- // Note: this is the the line that will be actually analyzed
- int32 current_line = 2;
- // filename is the file name for where the lines to analyze are located
- // filename is just a file name and not full path,
- // e.g. it can be 'untitled' if the file does not exists yet
- string filename = 3;
- // filepath is full file path on the file system of the file
- // where the lines to analyze are located
- // This can be empty string if the file does not exists yet
- // or analysis is done for the lines that are not a real file
- // e.g. a log stream
- string filepath = 4;
- // lines are the set/list of lines to analyze
- repeated string lines = 5;
-}
-
-// AnalyzeLinesResponse contains a response for AnalyzeLines method
-message AnalyzeLinesResponse {
- // risk contains information about found risk
- Risk risk = 1;
-}
-
-// AnalyzeFileRequest contains input parameters for AnalyzeFile method
-message AnalyzeFileRequest {
-    // filepath is the full file path to analyze.
-    // File must exist and be available for reading.
-    string filepath = 1;
-}
-   
-// AnalyzeFileResponse contains a response for AnalyzeFile method
-message AnalyzeFileResponse {
-    // risk contains information about found risk
-    Risk risk = 1;
-}
-
 // AnalyzeStreamMetadata contains stream metadata attribute(s)
 // it contains stream name metadata for now. may add more in future.
 message AnalyzeStreamMetadata {
@@ -94,17 +53,6 @@ message AnalyzeStreamResponse {
      
 // The BluBracket service definition.
 service BluBracket {
-    // AnalyzeLines analyzes the passed set of lines
-    // Note: the response is a stream response meaning that
-    // there can be multiple instances of the risks returned
-    // as soon as the risk is detected.
-    // More important for the AnalyzeFile method
-    // as the number of risks can be quite large
-    rpc AnalyzeLines(AnalyzeLinesRequest) returns (stream AnalyzeLinesResponse);
-
-    // AnalyzeFile analyzes the whole file
-    rpc AnalyzeFile(AnalyzeFileRequest) returns (stream AnalyzeFileResponse);
-
     // AnalyzeStream analyzes stream of data and sends back stream of risks detected. 
     // Note: the request is a stream. First msg sent on the stream must contain metadata of stream e.g. stream name.
     // subsequent messages may contain data to be analyzed. stream can be closed with CloseSend().
@@ -114,6 +62,5 @@ service BluBracket {
     // of current data in progress completes.
     rpc AnalyzeStream(stream AnalyzeStreamRequest) returns (stream AnalyzeStreamResponse);
 }
-
 
    
