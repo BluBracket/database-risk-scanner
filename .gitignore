@@ -89,3 +89,6 @@ fabric.properties
 # scan-db binary
 scan-db/scan-db
 
+# json output files
+scan-db/*.json
+

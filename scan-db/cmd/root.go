@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"io"
 	"os"
@@ -10,14 +9,14 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "github.com/jackc/pgx/v4/stdlib"
-
 	pb "github.com/BluBracket/database-risk-scanner/grpc/api"
 	"github.com/bserdar/jsonstream"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 var (
@@ -59,7 +58,6 @@ func scanDb() (err error) {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
 	fmt.Println("connected to db.")
 
 	// open output file
@@ -89,22 +87,14 @@ func scanDb() (err error) {
 }
 
 // connectToDb connects to postgres database.
-// for connecting to other golang supported databases, minor changes will be required.
-// 1. import driver for the database instead of pgx driver for postgres used here and pass to sql.Open()
-// 2. invoke the tool with database uri (format) supported by the driver
-// 3. update isSupportedColumnType() and convertToByteSlice() func if needed
-func connectToDb() (db *sql.DB, err error) {
-	db, err = sql.Open("pgx", uri)
+// for connecting to other gorm supported databases, refer https://gorm.io/docs/connecting_to_the_database.html
+func connectToDb() (db *gorm.DB, err error) {
+	db, err = gorm.Open(postgres.Open(uri), &gorm.Config{})
 	if err != nil {
-		err = errors.Wrap(err, "failed to connect")
+		err = errors.Wrap(err, "failed to connect to database")
 		return
 	}
 
-	err = db.Ping()
-	if err != nil {
-		err = errors.Wrap(err, "failed to ping")
-		return
-	}
 	return
 }
 
@@ -113,23 +103,13 @@ func connectToDb() (db *sql.DB, err error) {
 // for scanning and saves the risks found in the output file in json format.
 // it tags each risk with the recordId for correlation. on completion, it stops
 // the blubracket cli process.
-func queryDb(db *sql.DB, out jsonstream.LineWriter) (err error) {
-	rows, err := db.Query(fmt.Sprintf("select %s, %s from %s", idColumn, column, table))
+func queryDb(db *gorm.DB, out jsonstream.LineWriter) (err error) {
+	rows, err := db.Table(table).Select(idColumn, column).Rows()
 	if err != nil {
 		err = errors.Wrap(err, "failed to query")
 		return
 	}
 	defer rows.Close()
-	types, err := rows.ColumnTypes()
-	if err != nil {
-		err = errors.Wrap(err, "failed to get column types from query result")
-		return
-	}
-	databaseTypeName := types[1].DatabaseTypeName()
-	if !isSupportedColumnType(databaseTypeName) {
-		err = fmt.Errorf("column type not supported: %s", databaseTypeName)
-		return
-	}
 
 	// start server. open a connection to server.
 	cmd, conn, err := startServer()
@@ -143,19 +123,14 @@ func queryDb(db *sql.DB, out jsonstream.LineWriter) (err error) {
 	// read result set. send data to server for scanning.
 	fmt.Println("sending records for scanning")
 	for rows.Next() {
-		var id, rawData any
-		var data []byte
-		err = rows.Scan(&id, &rawData)
+		var r record
+		err = rows.Scan(&r.id, &r.text)
+		//fmt.Printf("%v, %v\n", r.id, string(r.text.b))
 		if err != nil {
 			err = errors.Wrap(err, "failed to read query result")
 			return
 		}
-		data, err = convertToByteSlice(databaseTypeName, rawData)
-		if err != nil {
-			err = errors.Wrap(err, "failed to convert data to []byte")
-			return
-		}
-		err = scanData(c, id, data, out)
+		err = scanData(c, r.id, r.text.b, out)
 		if err != nil {
 			err = errors.Wrap(err, "failed to scan record")
 			return
@@ -258,12 +233,11 @@ func readRisks(c pb.BluBracket_AnalyzeStreamClient, recordId string, out jsonstr
 			break
 		}
 		if err != nil {
-			fmt.Printf("failed receiving data from server: %v\n", err)
+			err = errors.Wrap(err, "failed receiving data from server")
 			return
 		}
 		err = writeRisk(recordId, asResponse.Risk, out)
 		if err != nil {
-			fmt.Printf("failed writing risk to output: %v\n", err)
 			return
 		}
 		riskCount++
@@ -271,7 +245,7 @@ func readRisks(c pb.BluBracket_AnalyzeStreamClient, recordId string, out jsonstr
 }
 
 // writeRisk writes risk in json format to the output including recordId
-func writeRisk(recordId string, risk *pb.Risk, out jsonstream.LineWriter) error {
+func writeRisk(recordId string, risk *pb.Risk, out jsonstream.LineWriter) (err error) {
 	r := map[string]interface{}{
 		"RecordId": recordId,
 		"Category": risk.Category,
@@ -282,38 +256,38 @@ func writeRisk(recordId string, risk *pb.Risk, out jsonstream.LineWriter) error 
 		"Col2":     risk.Col2,
 		"Tags":     risk.Tags,
 	}
-	return out.Marshal(r)
-}
-
-// isSupportedColumnType checks that databaseTypeName (dt) of the column being scanned is a text type
-func isSupportedColumnType(dt string) bool {
-	supportedTypes := map[string]interface{}{
-		"VARCHAR":  nil,
-		"NVARCHAR": nil,
-		"TEXT":     nil,
-		"_TEXT":    nil,
-		"BPCHAR":   nil,
-		"JSON":     nil,
-		"JSONB":    nil,
+	err = out.Marshal(r)
+	if err != nil {
+		err = errors.Wrap(err, "failed writing risk to output")
+		return
 	}
-	_, ok := supportedTypes[dt]
-	return ok
+	return
 }
 
-// convertToByteSlice does type casting of rawData and returns []byte.
-// rawData is the data for the column being scanned as returned by rows.Scan() method
-// typically it is of string or []uint8 type for columns that store textual data
-// returned []byte can be sent as data stream for scanning.
-func convertToByteSlice(databaseTypeName string, rawData any) (data []byte, err error) {
-	// fmt.Printf("database TypeName: %s, rawData type: %T\n", databaseTypeName, rawData)
+// record stores values for 'idColumn' and 'column' to be scanned for a row
+type record struct {
+	id   any
+	text textType
+}
+
+// textType implements the Scanner interface required for custom type
+// refer https://pkg.go.dev/database/sql#Scanner
+type textType struct {
+	b []byte
+}
+
+func (t *textType) Scan(rawData any) (err error) {
+	//fmt.Printf("rawData type: %T\n", rawData)
 	if s, ok := rawData.(string); ok {
-		return []byte(s), nil
+		t.b = []byte(s)
+		return
 	}
 	if b, ok := rawData.([]byte); ok {
-		// fmt.Printf("data : %s\n", string(b))
-		return b, nil
+		//fmt.Printf("data : %s\n", string(b))
+		t.b = b
+		return
 	}
-	err = errors.New(fmt.Sprintf("unexpected data type: %T (database TypeName: %s)", rawData, databaseTypeName))
+	err = errors.New(fmt.Sprintf("unexpected data type: %T", rawData))
 	return
 }
 
