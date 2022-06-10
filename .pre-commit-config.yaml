@@ -1,6 +1,17 @@
 repos:
   - repo: local
     hooks:
+      # normally we would use a 'built-in' hook for go fmt, git://github.com/dnephin/pre-commit-golang
+      # but it does not work on Windows
+      # there is a PR to fix that, https://github.com/dnephin/pre-commit-golang/pull/60
+      # so using run-go-fmt.sh directly from that PR
+      - id: go-fmt
+        name: go fmt
+        files: '\.go$'
+        language: script
+        entry: run-go-fmt.sh
+  - repo: local
+    hooks:
       - id: blubracket
         name: BluBracket
         language: system
