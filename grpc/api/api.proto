@@ -29,6 +29,12 @@ message Risk {
     // the map's keys are tag names;
     // the values are json-encoded per-tag specific data
     map<string, string> tags = 8;
+    // severity is risk severity like info, low, medium, high, critical
+    string severity = 9;
+    // value is the risk value
+    string value = 10;
+    // textual_context is text around the risk value
+    string textual_context = 11;
 }
 
 // AnalyzeStreamMetadata contains stream metadata attribute(s)

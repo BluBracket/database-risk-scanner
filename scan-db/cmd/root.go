@@ -268,14 +268,19 @@ func readRisks(c pb.BluBracket_AnalyzeStreamClient, recordId string, out jsonstr
 // writeRisk writes risk in json format to the output including recordId
 func writeRisk(recordId string, risk *pb.Risk, out jsonstream.LineWriter) (err error) {
 	r := map[string]interface{}{
-		"RecordId": recordId,
-		"Category": risk.Category,
-		"Type":     risk.Type,
-		"Line1":    risk.Line1,
-		"Col1":     risk.Col1,
-		"Line2":    risk.Line2,
-		"Col2":     risk.Col2,
-		"Tags":     risk.Tags,
+		"Table":          table,
+		"Column":         column,
+		"RecordId":       recordId,
+		"Category":       risk.Category,
+		"Type":           risk.Type,
+		"Severity":       risk.Severity,
+		"Value":          risk.Value,
+		"TextualContext": risk.TextualContext,
+		"Line1":          risk.Line1,
+		"Col1":           risk.Col1,
+		"Line2":          risk.Line2,
+		"Col2":           risk.Col2,
+		"Tags":           risk.Tags,
 	}
 	err = out.Marshal(r)
 	if err != nil {
