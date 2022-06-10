@@ -198,7 +198,7 @@ func connectToServer(serverUri string) (conn *grpc.ClientConn, err error) {
 // scanData invokes AnalyzeStream method on the gRPC server to scan the given data and write risks
 // to output if any. it sends metadata and data msg on the stream. it closes the send stream after
 // sending the data. it reads responses containing risks if any.
-func scanData(client pb.BluBracketClient, id any, data []byte, out jsonstream.LineWriter) (err error) {
+func scanData(client pb.BluBracketClient, id interface{}, data []byte, out jsonstream.LineWriter) (err error) {
 	// open streaming session
 	recordId := fmt.Sprintf("%v", id)
 	c, err := client.AnalyzeStream(context.Background())
@@ -301,7 +301,7 @@ func connectToDb() (db *gorm.DB, err error) {
 
 // record stores values for 'idColumn' and 'column' to be scanned for a row
 type record struct {
-	id   any
+	id   interface{}
 	text textType
 }
 
@@ -311,7 +311,7 @@ type textType struct {
 	b []byte
 }
 
-func (t *textType) Scan(rawData any) (err error) {
+func (t *textType) Scan(rawData interface{}) (err error) {
 	//fmt.Printf("rawData type: %T\n", rawData)
 	if s, ok := rawData.(string); ok {
 		t.b = []byte(s)
