@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"os"
@@ -73,37 +74,6 @@ func scanDb() (err error) {
 	outputStream := jsonstream.NewLineWriter(out)
 
 	// query and send data for scanning.
-	err = queryDb(db, outputStream)
-	if err != nil {
-		return err
-	}
-
-	if riskCount == 0 {
-		fmt.Println("no risks found")
-	} else {
-		fmt.Printf("found %d risk(s)\n", riskCount)
-	}
-	return
-}
-
-// connectToDb connects to postgres database.
-// for connecting to other gorm supported databases, refer https://gorm.io/docs/connecting_to_the_database.html
-func connectToDb() (db *gorm.DB, err error) {
-	db, err = gorm.Open(postgres.Open(uri), &gorm.Config{})
-	if err != nil {
-		err = errors.Wrap(err, "failed to connect to database")
-		return
-	}
-
-	return
-}
-
-// queryDb queries the given column in the given table and scans it for risks.
-// it starts blubracket cli as gRPC server. it streams each record data to server
-// for scanning and saves the risks found in the output file in json format.
-// it tags each risk with the recordId for correlation. on completion, it stops
-// the blubracket cli process.
-func queryDb(db *gorm.DB, out jsonstream.LineWriter) (err error) {
 	rows, err := db.Table(table).Select(idColumn, column).Rows()
 	if err != nil {
 		err = errors.Wrap(err, "failed to query")
@@ -120,6 +90,26 @@ func queryDb(db *gorm.DB, out jsonstream.LineWriter) (err error) {
 	defer conn.Close()
 	c := pb.NewBluBracketClient(conn)
 
+	// scan rows
+	err = scanRows(rows, c, outputStream)
+	if err != nil {
+		return
+	}
+
+	if riskCount == 0 {
+		fmt.Println("no risks found")
+	} else {
+		fmt.Printf("found %d risk(s)\n", riskCount)
+	}
+	return
+}
+
+// scanRows queries the textual data selected per row and send to server to scan for risks.
+// it starts blubracket cli as gRPC server. it streams each record data to server
+// for scanning and saves the risks found in the output file in json format.
+// it tags each risk with the recordId for correlation. on completion, it stops
+// the blubracket cli process.
+func scanRows(rows *sql.Rows, c pb.BluBracketClient, out jsonstream.LineWriter) (err error) {
 	// read result set. send data to server for scanning.
 	fmt.Println("sending records for scanning")
 	count := 1
@@ -139,6 +129,7 @@ func queryDb(db *gorm.DB, out jsonstream.LineWriter) (err error) {
 		fmt.Printf("\rprocessing record : %d", count)
 		count++
 	}
+	fmt.Println()
 	err = rows.Err()
 	if err != nil {
 		err = errors.Wrap(err, "failed to retrieve query result")
@@ -287,6 +278,18 @@ func writeRisk(recordId string, risk *pb.Risk, out jsonstream.LineWriter) (err e
 		err = errors.Wrap(err, "failed writing risk to output")
 		return
 	}
+	return
+}
+
+// connectToDb connects to postgres database.
+// for connecting to other gorm supported databases, refer https://gorm.io/docs/connecting_to_the_database.html
+func connectToDb() (db *gorm.DB, err error) {
+	db, err = gorm.Open(postgres.Open(uri), &gorm.Config{})
+	if err != nil {
+		err = errors.Wrap(err, "failed to connect to database")
+		return
+	}
+
 	return
 }
 
