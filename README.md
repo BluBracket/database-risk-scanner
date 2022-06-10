@@ -54,9 +54,9 @@ Open command/terminal window.
 # Scan a given column in the table 
 ./scan-db --uri <database-uri> --table <table name>  --column <column to scan> --id-column <record id column> --output out.json
 
-# scan `info` column of `orders` table in postgres database installed locally with sslmode disabled running on default port `5432`
+# scan `info` column of `accounts` table in postgres database installed locally running on default port `5432`
 # uri is the standard postgres connection string. refer https://pkg.go.dev/github.com/lib/pq
-./scan-db --uri postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable --table orders --id-column id --column info --output out.json
+./scan-db --uri postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-full --table accounts --id-column id --column info --output out.json
 
 ```
 

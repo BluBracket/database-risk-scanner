@@ -44,7 +44,11 @@ var rootCmd = &cobra.Command{
 	Long: `scan-db scans postgres database for risks. it scans the given column in the table and
 output the risks if any. For example:
 
-scan-db --database <uri> --table <table name> --column <column name> --output <path/to/file>`,
+scan-db --uri <uri> --table <table name> --column <column name> --output <path/to/file>
+
+scan-db --uri postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-full --table accounts --id-column id --column info --output out.json
+where uri is the standard postgres uri. refer https://pkg.go.dev/github.com/lib/pq for uri format.
+`,
 	Run: func(cmd *cobra.Command, args []string) {
 		err := scanDb()
 		if err != nil {
@@ -53,6 +57,10 @@ scan-db --database <uri> --table <table name> --column <column name> --output <p
 	},
 }
 
+// scanDb connects to database and scans the column data for risks.
+// it starts the blubracket cli as local gRPC server and uses it
+// to scan the data for risks.
+// on completion, it stops the blubracket cli process.
 func scanDb() (err error) {
 	// connect to db
 	db, err := connectToDb()
@@ -105,10 +113,8 @@ func scanDb() (err error) {
 }
 
 // scanRows queries the textual data selected per row and send to server to scan for risks.
-// it starts blubracket cli as gRPC server. it streams each record data to server
-// for scanning and saves the risks found in the output file in json format.
-// it tags each risk with the recordId for correlation. on completion, it stops
-// the blubracket cli process.
+// it streams each record data to server for scanning and saves the risks found in the output file in json format.
+// it tags each risk with the recordId for correlation.
 func scanRows(rows *sql.Rows, c pb.BluBracketClient, out jsonstream.LineWriter) (err error) {
 	// read result set. send data to server for scanning.
 	fmt.Println("sending records for scanning")
@@ -228,7 +234,7 @@ func scanData(client pb.BluBracketClient, id any, data []byte, out jsonstream.Li
 	return
 }
 
-// readRisks receive response(s) containing risk found. it add recordId to the risk for correlation and
+// readRisks receive response(s) containing risk found. it adds recordId to the risk for correlation and
 // writes it to the output file in json.
 func readRisks(c pb.BluBracket_AnalyzeStreamClient, recordId string, out jsonstream.LineWriter, errCh chan error) {
 	var err error
