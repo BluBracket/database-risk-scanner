@@ -127,13 +127,17 @@ func scanRows(rows *sql.Rows, c pb.BluBracketClient, out jsonstream.LineWriter) 
 			err = errors.Wrap(err, "failed to read query result")
 			return
 		}
+		fmt.Printf("\rprocessing record : %d", count)
+		count++
+		if r.text.b == nil {
+			// ignore
+			continue
+		}
 		err = scanData(c, r.id, r.text.b, out)
 		if err != nil {
 			err = errors.Wrap(err, "failed to scan record")
 			return
 		}
-		fmt.Printf("\rprocessing record : %d", count)
-		count++
 	}
 	fmt.Println()
 	err = rows.Err()
@@ -313,6 +317,10 @@ type textType struct {
 
 func (t *textType) Scan(rawData interface{}) (err error) {
 	//fmt.Printf("rawData type: %T\n", rawData)
+	if rawData == nil {
+		t.b = nil
+		return
+	}
 	if s, ok := rawData.(string); ok {
 		t.b = []byte(s)
 		return
