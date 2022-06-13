@@ -1,9 +1,8 @@
 # Database Risk Scanner
 
-This tool demonstrates to analyze textual data stored in a postgres database using BluBracket CLI as local gRPC server. 
+This tool demonstrates to analyze textual data stored in a postgres database using BluBracket CLI. 
 
-This fully-functional solution uses the BluBracket CLI to do the risk detection heavy lifting,
-combined with open-source `scan-db` client code written in golang.
+This fully-functional solution uses the BluBracket CLI to do the risk detection heavy lifting.
 
 This tool runs entirely locally. Installation is almost as easy as cloning the repo,
 and you should have a working POC in minutes.

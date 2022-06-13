@@ -89,8 +89,8 @@ func scanDb() (err error) {
 	}
 	defer rows.Close()
 
-	// start server. open a connection to server.
-	cmd, conn, err := startServer()
+	// start CLI as server. open a connection to server.
+	cmd, conn, err := startCLIServer()
 	if err != nil {
 		return
 	}
@@ -145,16 +145,16 @@ func scanRows(rows *sql.Rows, c pb.BluBracketClient, out jsonstream.LineWriter) 
 	return
 }
 
-// startServer launches the blubracket cli as a local gRPC server process.
+// startCLIServer launches the BluBracket CLI as a local gRPC server process.
 // it also establishes a connection to the server.
 // it assumes that blubracket binary to be in PATH
-func startServer() (cmd *exec.Cmd, conn *grpc.ClientConn, err error) {
+func startCLIServer() (cmd *exec.Cmd, conn *grpc.ClientConn, err error) {
 	defer func() {
 		if err != nil && cmd != nil && cmd.Process != nil {
 			cmd.Process.Kill()
 		}
 	}()
-	fmt.Println("Starting blubracket local gRPC server...")
+	fmt.Println("Starting BluBracket local gRPC server...")
 	const processName = "blubracket"
 	serverUri := "unix:" + filepath.Join(os.TempDir(), fmt.Sprintf("blubracket.grpcserver.dbscan-%d", os.Getpid()))
 	cmd = exec.Command(processName, "serve", serverUri)
@@ -162,7 +162,7 @@ func startServer() (cmd *exec.Cmd, conn *grpc.ClientConn, err error) {
 	cmd.Stderr = os.Stderr
 	err = cmd.Start()
 	if err != nil {
-		err = errors.Wrap(err, "failed to start blubracket cli process")
+		err = errors.Wrap(err, "failed to start BluBracket CLI process")
 		return
 	}
 	// establish a connection
