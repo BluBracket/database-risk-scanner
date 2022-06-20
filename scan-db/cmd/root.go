@@ -177,12 +177,16 @@ func startCLIServer() (cmd *exec.Cmd, conn *grpc.ClientConn, err error) {
 // connectToServer establish a connection to the local gRPC server listening at serverUri.
 // it retries a couple of times before failing.
 func connectToServer(serverUri string) (conn *grpc.ClientConn, err error) {
+	// initial wait
+	time.Sleep(4 * time.Second)
+
 	s := 1
 	retries := 3
 	for {
 		// wait for few seconds before dialing
 		time.Sleep(time.Duration(s) * time.Second)
-		conn, err = grpc.Dial(serverUri, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		ctx, _ := context.WithTimeout(context.Background(), time.Second)
+		conn, err = grpc.DialContext(ctx, serverUri, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
 		if err == nil {
 			return
 		}
@@ -193,7 +197,7 @@ func connectToServer(serverUri string) (conn *grpc.ClientConn, err error) {
 			err = errors.Wrap(err, "failed to connect to server")
 			return
 		} else {
-			fmt.Printf("\rretry connect to server after %d seconds", s)
+			fmt.Printf("\rretry connect to server after %d seconds. ", s)
 		}
 
 	}
