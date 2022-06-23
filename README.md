@@ -55,7 +55,7 @@ Open command/terminal window.
 ./scan-db --uri <database-uri> --table <table name>  --column <column to scan> --id-column <record id column> --output out.json
 
 # sample test steps:
-# 1. create test table `accounts` using `/scan-db/_testdata/accounts.sql` in local postgres db for development.
+# 1. create test table `accounts` using `/scan-db/_testdata/postgres/accounts.sql` in local postgres db for development.
 #    assumptions - username - `postgres`, password - `postgres`, port - `5432`, sslmode enabled
 #    database-uri  - postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-full 
 #    for details of postgres database uri - refer https://pkg.go.dev/github.com/lib/pq e.g. sslmode field other values

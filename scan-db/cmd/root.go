@@ -8,19 +8,26 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	pb "github.com/BluBracket/database-risk-scanner/grpc/api"
 	"github.com/bserdar/jsonstream"
+	"github.com/glebarez/sqlite"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
 )
 
 var (
+	// dbType can be postgres, sqlite, mysql or mssql
+	// it contains parsed value for the '--dbtype' flag. defaults to postgres.
+	dbType dbTypeEnum = dbTypeEnum(dbTypePostgres)
 	// uri contains parsed value for the '--uri' flag
 	uri string
 	// table contains parsed value for '--table' flag
@@ -41,13 +48,19 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "scan-db",
 	Short: "scan-db scans database for risks",
-	Long: `scan-db scans postgres database for risks. it scans the given column in the table and
+	Long: `scan-db scans database for risks. it scans the given column in the table and
 output the risks if any. For example:
 
-scan-db --uri <uri> --table <table name> --column <column name> --output <path/to/file>
+./scan-db --uri <uri> --table <table name> --column <column name> --output <path/to/file>
 
-scan-db --uri postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-full --table accounts --id-column id --column info --output out.json
+./scan-db --uri postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-full --table accounts --id-column id --column info --output out.json
 where uri is the standard postgres uri. refer https://pkg.go.dev/github.com/lib/pq for uri format.
+
+./scan-db --dbtype sqlite --uri _testdata/sqlite/sample.db --table accounts --id-column id --column info --output out.json
+it scans a sqlite DB 'sample.db' for the given table and column.
+
+./scan-db --dbtype mysql --uri user:password@tcp/mysql --table accounts --id-column id --column info --output out.json
+it scans mysql DB 'mysql' at localhost. refer https://github.com/go-sql-driver/mysql#dsn-data-source-name for mysql uri format
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		err := scanDb()
@@ -298,12 +311,29 @@ func writeRisk(recordId string, risk *pb.Risk, out jsonstream.LineWriter) (err e
 // connectToDb connects to postgres database.
 // for connecting to other gorm supported databases, refer https://gorm.io/docs/connecting_to_the_database.html
 func connectToDb() (db *gorm.DB, err error) {
-	db, err = gorm.Open(postgres.Open(uri), &gorm.Config{})
+	db, err = gorm.Open(getDialector(), &gorm.Config{})
 	if err != nil {
 		err = errors.Wrap(err, "failed to connect to database")
 		return
 	}
 
+	return
+}
+
+func getDialector() (d gorm.Dialector) {
+	switch dbType {
+	case dbTypeEnum(dbTypePostgres):
+		d = postgres.Open(uri)
+	case dbTypeEnum(dbTypeSqlite):
+		d = sqlite.Open(uri)
+	case dbTypeEnum(dbTypeMysql):
+		d = mysql.Open(uri)
+	case dbTypeEnum(dbTypeMssql):
+		d = sqlserver.Open(uri)
+	default:
+		// should not get here
+		panic(fmt.Sprintf("unknown dbtype : %v", dbType))
+	}
 	return
 }
 
@@ -347,7 +377,40 @@ func Execute() {
 	}
 }
 
+// dbTypeEnum is custom value type and implements pFlag.Value interface
+type dbTypeEnum string
+
+const (
+	dbTypePostgres string = "postgres"
+	dbTypeSqlite   string = "sqlite"
+	dbTypeMysql    string = "mysql"
+	dbTypeMssql    string = "mssql"
+)
+
+var supportedDatabases = []string{dbTypePostgres, dbTypeSqlite, dbTypeMysql, dbTypeMssql}
+var supportedDatabasesText = strings.Join(supportedDatabases, ", ")
+
+func (t *dbTypeEnum) String() string {
+	return string(*t)
+}
+
+func (t *dbTypeEnum) Type() string {
+	return "dbTypeEnum"
+}
+
+func (t *dbTypeEnum) Set(v string) error {
+	switch v {
+	case dbTypePostgres, dbTypeSqlite, dbTypeMysql, dbTypeMssql:
+		*t = dbTypeEnum(v)
+		return nil
+	default:
+		return errors.New(fmt.Sprintf("Unsupported dbtype : %s. Supported dbtypes are (%s)",
+			v, supportedDatabasesText))
+	}
+}
+
 func init() {
+	rootCmd.Flags().VarP(&dbType, "dbtype", "d", fmt.Sprintf("Specify database (%s).", supportedDatabasesText))
 	rootCmd.Flags().StringVarP(&uri, "uri", "u", "", "Specify postgres database uri")
 	rootCmd.Flags().StringVarP(&table, "table", "t", "", "Specify table name")
 	rootCmd.Flags().StringVarP(&column, "column", "c", "", "Specify column name to scan")

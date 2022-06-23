@@ -91,4 +91,3 @@ scan-db/scan-db
 
 # json output files
 scan-db/*.json
-
