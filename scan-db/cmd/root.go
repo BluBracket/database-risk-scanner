@@ -53,14 +53,20 @@ output the risks if any. For example:
 
 ./scan-db --uri <uri> --table <table name> --column <column name> --output <path/to/file>
 
-./scan-db --uri postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-full --table accounts --id-column id --column info --output out.json
+./scan-db --uri postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-full --table accounts --id-column id --column notes --output out.json
 where uri is the standard postgres uri. refer https://pkg.go.dev/github.com/lib/pq for uri format.
 
-./scan-db --dbtype sqlite --uri _testdata/sqlite/sample.db --table accounts --id-column id --column info --output out.json
+./scan-db --dbtype sqlite --uri _testdata/sqlite/sample.db --table accounts --id-column id --column notes --output out.json
 it scans a sqlite DB 'sample.db' for the given table and column.
 
-./scan-db --dbtype mysql --uri user:password@tcp/mysql --table accounts --id-column id --column info --output out.json
-it scans mysql DB 'mysql' at localhost. refer https://github.com/go-sql-driver/mysql#dsn-data-source-name for mysql uri format
+./scan-db --dbtype mysql --uri user:password@tcp/mysql --table accounts --id-column id --column notes --output out.json
+it scans mysql DB 'mysql' at localhost for given table and column. 
+refer https://github.com/go-sql-driver/mysql#dsn-data-source-name for mysql uri format
+
+./scan-db --dbtype=mssql --uri="Server=localhost;Database=sqldb;Trusted_Connection=True;" --table=accounts --id-column=id --column=notes --output=out.json
+it scans mssql DB 'sqldb' at localhost using windows authentication for given table and column. 
+refer https://github.com/microsoft/go-mssqldb and sqlserver documentation for uri (connection string) format.
+
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		err := scanDb()

@@ -51,20 +51,25 @@ Open command/terminal window.
 
 ```
 # Scan a given column in the table 
-# uri is the standard postgres connection string. refer https://pkg.go.dev/github.com/lib/pq
-./scan-db --uri <database-uri> --table <table name>  --column <column to scan> --id-column <record id column> --output out.json
+# uri is the standard connection string for the database. 
+./scan-db --dbtype <database> --uri <database-uri> --table <table name>  --column <column to scan> --id-column <record id column> --output out.json
 
-# sample test steps:
+# sample test steps (for postgres):
 # 1. create test table `accounts` using `/scan-db/_testdata/postgres/accounts.sql` in local postgres db for development.
 #    assumptions - username - `postgres`, password - `postgres`, port - `5432`, sslmode enabled
 #    database-uri  - postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-full 
 #    for details of postgres database uri - refer https://pkg.go.dev/github.com/lib/pq e.g. sslmode field other values
 # 2. scan `notes` column of `accounts` table. accounts table has `id column` as `id`
-./scan-db --uri postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-full --table accounts --id-column id --column notes --output out.json
+./scan-db --dbtype postgres --uri postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-full --table accounts --id-column id --column notes --output out.json
 # 3. `out.json` will have one password risk captured.
 # 4. scan `info` column of `accounts` table. 
-./scan-db --uri postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-full --table accounts --id-column id --column info
+./scan-db --dbtype postgres --uri postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-full --table accounts --id-column id --column info
 # 5. scan will not find any risks as there are no secrets stored in this column.
+
+Steps can be modified to try it with --dbtype sqlite, mysql or mssql. _testdata has sample data for each type of database.
+
+For help:
+./scan-db --help
 ```
 
 

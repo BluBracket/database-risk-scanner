@@ -1,2 +1,2 @@
 - paths:
-    - scan-db/_testdata/*
+    - scan-db/_testdata/**
