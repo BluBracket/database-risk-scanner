@@ -1,6 +1,6 @@
 # Database Risk Scanner
 
-This tool demonstrates to analyze textual data stored in a postgres database using BluBracket CLI. 
+This tool demonstrates to analyze textual data stored in a database using BluBracket CLI. 
 
 This fully-functional solution uses the BluBracket CLI to do the risk detection heavy lifting.
 
