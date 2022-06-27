@@ -56,7 +56,7 @@ output the risks if any. For example:
 ./scan-db --uri postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-full --table accounts --id-column id --column notes --output out.json
 where uri is the standard postgres uri. refer https://pkg.go.dev/github.com/lib/pq for uri format.
 
-./scan-db --dbtype sqlite --uri _testdata/sqlite/sample.db --table accounts --id-column id --column notes --output out.json
+./scan-db --dbtype sqlite --uri _testdata/sqlite/accounts.db --table accounts --id-column id --column notes --output out.json
 it scans a sqlite DB 'sample.db' for the given table and column.
 
 ./scan-db --dbtype mysql --uri user:password@tcp/mysql --table accounts --id-column id --column notes --output out.json
