@@ -1,21 +1,15 @@
 repos:
   - repo: local
     hooks:
-      - id: flake8
-        name: Lint - flake8
-        language: system
-        types: [python]
-        entry: pipenv run flake8
-      - id: black
-        name: Format code - black
-        language: system
-        types: [python]
-        entry: pipenv run black --check
-      - id: isort
-        name: Format imports - isort
-        language: system
-        types: [python]
-        entry: pipenv run isort --check-only --recursive
+      # normally we would use a 'built-in' hook for go fmt, git://github.com/dnephin/pre-commit-golang
+      # but it does not work on Windows
+      # there is a PR to fix that, https://github.com/dnephin/pre-commit-golang/pull/60
+      # so using run-go-fmt.sh directly from that PR
+      - id: go-fmt
+        name: go fmt
+        files: '\.go$'
+        language: script
+        entry: run-go-fmt.sh
   - repo: local
     hooks:
       - id: blubracket

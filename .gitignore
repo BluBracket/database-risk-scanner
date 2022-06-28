@@ -85,3 +85,10 @@ fabric.properties
 
 # ngrok
 **/ngrok.log
+
+# scan-db binary
+scan-db/scan-db
+scan-db/scan-db.exe
+
+# json output files
+scan-db/*.json
