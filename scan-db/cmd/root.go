@@ -281,7 +281,7 @@ func readRisks(c pb.BluBracket_AnalyzeStreamClient, out jsonstream.LineWriter, e
 			return
 		}
 		// fmt.Printf("response context: %v\n", asResponse.Context)
-		err = writeRisk(asResponse.Context, asResponse.Risk, out)
+		err = writeRisk(asResponse.Metadata.Context, asResponse.Risk, out)
 		if err != nil {
 			return
 		}

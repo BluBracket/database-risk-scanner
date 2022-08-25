@@ -22,12 +22,12 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type BluBracketClient interface {
-	// AnalyzeStream analyzes stream of data and sends back stream of risks detected.
-	// Note: the request is a stream. First msg sent on the stream must contain metadata of stream.
-	// metadata msg may contain context required for corelation. it is sent back in the response.
-	// subsequent messages may contain data to be analyzed.
-	// if metadata has changed, it may be resend mid stream followed by data messages.
-	// stream must be closed with CloseSend().
+	// AnalyzeStream analyzes multiple streams of data and sends back stream of risks detected.
+	// Note: for each stream first msg sent on the stream must contain metadata of stream.
+	// metadata msg may contain context required for corelation. metadata is sent back in the response msg.
+	// metadata msg is followed by data messages containing data to be analyzed for the stream.
+	//
+	// once all data is sent - request stream must be closed with CloseSend().
 	// as soon as a risk is detected on incoming stream of data, it will be sent as response.
 	// once all the risks are returned - response stream will be closed (io.EOF).
 	// In case of cancellation, AnalyzeStream will abort as soon as the analysis
@@ -78,12 +78,12 @@ func (x *bluBracketAnalyzeStreamClient) Recv() (*AnalyzeStreamResponse, error) {
 // All implementations must embed UnimplementedBluBracketServer
 // for forward compatibility
 type BluBracketServer interface {
-	// AnalyzeStream analyzes stream of data and sends back stream of risks detected.
-	// Note: the request is a stream. First msg sent on the stream must contain metadata of stream.
-	// metadata msg may contain context required for corelation. it is sent back in the response.
-	// subsequent messages may contain data to be analyzed.
-	// if metadata has changed, it may be resend mid stream followed by data messages.
-	// stream must be closed with CloseSend().
+	// AnalyzeStream analyzes multiple streams of data and sends back stream of risks detected.
+	// Note: for each stream first msg sent on the stream must contain metadata of stream.
+	// metadata msg may contain context required for corelation. metadata is sent back in the response msg.
+	// metadata msg is followed by data messages containing data to be analyzed for the stream.
+	//
+	// once all data is sent - request stream must be closed with CloseSend().
 	// as soon as a risk is detected on incoming stream of data, it will be sent as response.
 	// once all the risks are returned - response stream will be closed (io.EOF).
 	// In case of cancellation, AnalyzeStream will abort as soon as the analysis
