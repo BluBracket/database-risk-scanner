@@ -246,7 +246,7 @@ func sendData(c pb.BluBracket_AnalyzeStreamClient, id interface{}, data []byte) 
 	// send metadata msg
 	recordId := fmt.Sprintf("%v", id)
 	// fmt.Printf("sending record id - %v", recordId)
-	err = c.Send(&pb.AnalyzeStreamRequest{Metadata: &pb.AnalyzeStreamMetadata{StreamName: recordId, Context: recordId}})
+	err = c.Send(&pb.AnalyzeStreamRequest{Metadata: &pb.AnalyzeStreamMetadata{Context: recordId}})
 	if err != nil {
 		err = errors.Wrap(err, "failed to send metadata msg")
 		return
