@@ -38,9 +38,10 @@ message Risk {
 }
 
 // AnalyzeStreamMetadata contains stream metadata attribute(s)
-// it contains stream name metadata for now. may add more in future.
+// context may contain contextual information needed for co-relation
 message AnalyzeStreamMetadata {
     string stream_name = 1;
+    string context = 2;
 }
 
 // AnalyzeStreamRequest contains input parameters for AnalyzeStream method
@@ -55,13 +56,18 @@ message AnalyzeStreamRequest {
 message AnalyzeStreamResponse {
     // risk contains information about found risk
     Risk risk = 1;
+    // metadata is the last metadata msg on request stream. it is sent back for co-relation.
+    AnalyzeStreamMetadata metadata = 2;
 }
      
 // The BluBracket service definition.
 service BluBracket {
-    // AnalyzeStream analyzes stream of data and sends back stream of risks detected. 
-    // Note: the request is a stream. First msg sent on the stream must contain metadata of stream e.g. stream name.
-    // subsequent messages may contain data to be analyzed. stream can be closed with CloseSend().
+    // AnalyzeStream analyzes multiple streams of data and sends back stream of risks detected. 
+    // Note: for each stream first msg sent on the stream must contain metadata of stream. 
+    // metadata msg may contain context required for corelation. metadata is sent back in the response msg.
+    // metadata msg is followed by data messages containing data to be analyzed for the stream.
+    // 
+    // once all data is sent - request stream must be closed with CloseSend().
     // as soon as a risk is detected on incoming stream of data, it will be sent as response.
     // once all the risks are returned - response stream will be closed (io.EOF).
     // In case of cancellation, AnalyzeStream will abort as soon as the analysis

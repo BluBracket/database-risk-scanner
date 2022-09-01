@@ -128,20 +128,32 @@ func scanDb() (err error) {
 	} else {
 		fmt.Printf("found %d risk(s)\n", riskCount)
 	}
+	fmt.Println("scan completed")
 	return
 }
 
 // scanRows queries the textual data selected per row and send to server to scan for risks.
 // it streams each record data to server for scanning and saves the risks found in the output file in json format.
 // it tags each risk with the recordId for correlation.
-func scanRows(rows *sql.Rows, c pb.BluBracketClient, out jsonstream.LineWriter) (err error) {
+func scanRows(rows *sql.Rows, client pb.BluBracketClient, out jsonstream.LineWriter) (err error) {
+	c, err := client.AnalyzeStream(context.Background())
+	if err != nil {
+		err = errors.Wrap(err, "AnalyzeStream call failed")
+		return
+	}
+
+	// read response(s) on stream while sending data
+	errCh := make(chan error, 1)
+	go readRisks(c, out, errCh)
+
 	// read result set. send data to server for scanning.
 	fmt.Println("sending records for scanning")
+	start := time.Now()
 	count := 1
 	for rows.Next() {
 		var r record
 		err = rows.Scan(&r.id, &r.text)
-		//fmt.Printf("%v, %v\n", r.id, string(r.text.b))
+		// fmt.Printf(" data - %v, %v\n", r.id, string(r.text.b))
 		if err != nil {
 			err = errors.Wrap(err, "failed to read query result")
 			return
@@ -152,19 +164,27 @@ func scanRows(rows *sql.Rows, c pb.BluBracketClient, out jsonstream.LineWriter) 
 			// ignore
 			continue
 		}
-		err = scanData(c, r.id, r.text.b, out)
+		err = sendData(c, r.id, r.text.b)
 		if err != nil {
-			err = errors.Wrap(err, "failed to scan record")
+			err = errors.Wrap(err, "failed to send record")
 			return
 		}
 	}
 	fmt.Println()
+	// close send stream
+	err = c.CloseSend()
+	if err != nil {
+		err = errors.Wrap(err, "failed to close send stream")
+		return
+	}
 	err = rows.Err()
 	if err != nil {
 		err = errors.Wrap(err, "failed to retrieve query result")
 		return
 	}
-	fmt.Println("scan completed")
+	err = <-errCh
+	duration := time.Since(start)
+	fmt.Printf("time taken: %v\n", duration)
 	return
 }
 
@@ -218,52 +238,31 @@ func connectToServer(serverUri string) (conn *grpc.ClientConn, err error) {
 		} else {
 			fmt.Printf("\rretry connect to server after %d seconds. ", s)
 		}
-
 	}
 }
 
-// scanData invokes AnalyzeStream method on the gRPC server to scan the given data and write risks
-// to output if any. it sends metadata and data msg on the stream. it closes the send stream after
-// sending the data. it reads responses containing risks if any.
-func scanData(client pb.BluBracketClient, id interface{}, data []byte, out jsonstream.LineWriter) (err error) {
-	// open streaming session
-	recordId := fmt.Sprintf("%v", id)
-	c, err := client.AnalyzeStream(context.Background())
-	if err != nil {
-		err = errors.Wrap(err, "AnalyzeStream call failed")
-		return
-	}
+// sendData sends metadata and data msg on the stream
+func sendData(c pb.BluBracket_AnalyzeStreamClient, id interface{}, data []byte) (err error) {
 	// send metadata msg
-	err = c.Send(&pb.AnalyzeStreamRequest{Metadata: &pb.AnalyzeStreamMetadata{StreamName: recordId}})
+	recordId := fmt.Sprintf("%v", id)
+	// fmt.Printf("sending record id - %v", recordId)
+	err = c.Send(&pb.AnalyzeStreamRequest{Metadata: &pb.AnalyzeStreamMetadata{Context: recordId}})
 	if err != nil {
 		err = errors.Wrap(err, "failed to send metadata msg")
 		return
 	}
-
-	// read response(s) on stream while sending data
-	errCh := make(chan error, 1)
-	go readRisks(c, recordId, out, errCh)
-
 	// send data msg
 	err = c.Send(&pb.AnalyzeStreamRequest{Data: data})
 	if err != nil {
 		err = errors.Wrap(err, "failed to send data msg")
 		return
 	}
-	// close send stream
-	err = c.CloseSend()
-	if err != nil {
-		err = errors.Wrap(err, "failed to close send stream")
-		return
-	}
-
-	err = <-errCh
 	return
 }
 
 // readRisks receive response(s) containing risk found. it adds recordId to the risk for correlation and
 // writes it to the output file in json.
-func readRisks(c pb.BluBracket_AnalyzeStreamClient, recordId string, out jsonstream.LineWriter, errCh chan error) {
+func readRisks(c pb.BluBracket_AnalyzeStreamClient, out jsonstream.LineWriter, errCh chan error) {
 	var err error
 	defer func() {
 		errCh <- err
@@ -281,7 +280,8 @@ func readRisks(c pb.BluBracket_AnalyzeStreamClient, recordId string, out jsonstr
 			err = errors.Wrap(err, "failed receiving data from server")
 			return
 		}
-		err = writeRisk(recordId, asResponse.Risk, out)
+		// fmt.Printf("response context: %v\n", asResponse.Context)
+		err = writeRisk(asResponse.Metadata.Context, asResponse.Risk, out)
 		if err != nil {
 			return
 		}
@@ -417,7 +417,7 @@ func (t *dbTypeEnum) Set(v string) error {
 
 func init() {
 	rootCmd.Flags().VarP(&dbType, "dbtype", "d", fmt.Sprintf("Specify database (%s).", supportedDatabasesText))
-	rootCmd.Flags().StringVarP(&uri, "uri", "u", "", "Specify postgres database uri")
+	rootCmd.Flags().StringVarP(&uri, "uri", "u", "", "Specify database uri")
 	rootCmd.Flags().StringVarP(&table, "table", "t", "", "Specify table name")
 	rootCmd.Flags().StringVarP(&column, "column", "c", "", "Specify column name to scan")
 	rootCmd.Flags().StringVarP(&idColumn, "id-column", "i", "", "Specify record-id column name for reference in result")
