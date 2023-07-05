@@ -7,8 +7,8 @@ require (
 	github.com/glebarez/sqlite v1.4.5
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.4.0
-	google.golang.org/grpc v1.47.0
-	google.golang.org/protobuf v1.28.0
+	google.golang.org/grpc v1.53.0
+	google.golang.org/protobuf v1.28.1
 	gorm.io/driver/mysql v1.3.4
 	gorm.io/driver/postgres v1.3.7
 	gorm.io/driver/sqlserver v1.3.2
